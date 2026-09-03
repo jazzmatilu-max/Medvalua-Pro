@@ -28,7 +28,7 @@ export default function PatientSection() {
             <HelpTip title="Cómo diligenciar esta sección">
               <p>
                 Captura la información de identificación del valorado. La{" "}
-                <strong>fecha de diligenciamiento</strong> es la fecha en que se
+                <strong>fecha de estructuración</strong> es la fecha en que se
                 considera consolidada la deficiencia y es clave para efectos
                 legales del dictamen.
               </p>

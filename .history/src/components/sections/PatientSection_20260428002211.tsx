@@ -28,7 +28,7 @@ export default function PatientSection() {
             <HelpTip title="Cómo diligenciar esta sección">
               <p>
                 Captura la información de identificación del valorado. La{" "}
-                <strong>fecha de diligenciamiento</strong> es la fecha en que se
+                <strong>fecha de estructuración</strong> es la fecha en que se
                 considera consolidada la deficiencia y es clave para efectos
                 legales del dictamen.
               </p>
@@ -100,12 +100,11 @@ export default function PatientSection() {
             />
           </div>
           <div className="space-y-2 md:col-span-2">
-            <Label>Fecha de diligenciamiento</Label>
+            <Label>Fecha de estructuración</Label>
             <Input
               type="date"
-              value={paciente.fechadediligenciamiento
-              }
-              onChange={(e) => setPaciente({ fechadediligenciamiento: e.target.value })}
+              value={paciente.fechaEstructuracion}
+              onChange={(e) => setPaciente({ fechaEstructuracion: e.target.value })}
             />
           </div>
           <div className="space-y-2 md:col-span-2">

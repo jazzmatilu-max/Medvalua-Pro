@@ -215,7 +215,7 @@ export function exportDictamenWord(data: DictamenData) {
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
+      .replace(/\"/g, "&quot;");
   const patientRows = [
     ["Nombre", data.paciente.nombre],
     ["Documento", data.paciente.documento],

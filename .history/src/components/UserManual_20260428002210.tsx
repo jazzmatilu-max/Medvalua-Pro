@@ -44,7 +44,7 @@ export default function UserManual({ trigger }: { trigger?: React.ReactNode }) {
               <h3 className="font-semibold text-base mb-1">1. Datos del Paciente</h3>
               <p className="text-muted-foreground">
                 Inicia siempre completando nombre, documento, edad, sexo, ocupación
-                y fecha de diligenciamiento Estos datos viajan al PDF y al historial.
+                y fecha de estructuración. Estos datos viajan al PDF y al historial.
               </p>
             </section>
 
