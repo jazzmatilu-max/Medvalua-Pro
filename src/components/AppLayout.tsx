@@ -113,7 +113,7 @@ export default function AppLayout() {
           </div>
           {user && (
             <>
-              <p className="text-[11px] text-sidebar-foreground/50 mt-3 truncate">
+              <p className="text-[11px] text-sidebar-foreground/50 mt-3 break-words">
                 Hola, {userName} {isAdmin && <span className="text-primary-glow font-semibold">· Admin</span>}
               </p>
               {!isAdmin && hasAccess && daysLeft !== null && (
@@ -137,7 +137,7 @@ export default function AppLayout() {
                       return <Ticket className={`h-5 w-5 ${cls}`} />;
                     })()}
                   </div>
-                  <span className="text-[11px] text-sidebar-foreground/60">
+                  <span className="text-[11px] leading-snug text-sidebar-foreground/60 break-words">
                     {daysLeft === 0 ? 'Expira hoy' : `Te quedan ${daysLeft} día(s)`}
                   </span>
                 </div>

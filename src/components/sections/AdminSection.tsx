@@ -185,6 +185,21 @@ export default function AdminSection() {
     );
   }, [users, userSearch]);
 
+  const userAccess = useMemo(() => {
+    const access: Record<string, { daysLeft: number; expiresAt: string }> = {};
+    rows.forEach((coupon) => {
+      if (!coupon.used || !coupon.redeemed_by || !coupon.expires_at) return;
+      const expiresAt = new Date(coupon.expires_at);
+      if (expiresAt <= new Date()) return;
+      const daysLeft = Math.max(0, Math.ceil((expiresAt.getTime() - Date.now()) / 86400000));
+      const current = access[coupon.redeemed_by];
+      if (!current || expiresAt.getTime() > new Date(current.expiresAt).getTime()) {
+        access[coupon.redeemed_by] = { daysLeft, expiresAt: coupon.expires_at };
+      }
+    });
+    return access;
+  }, [rows]);
+
   const create = async () => {
     if (!user) return;
     const cleanCode = code.trim().toUpperCase().replace(/\s+/g, "");
@@ -394,6 +409,7 @@ export default function AdminSection() {
                 <TableRow>
                   <TableHead>Usuario</TableHead>
                   <TableHead>Rol</TableHead>
+                  <TableHead>Acceso</TableHead>
                   <TableHead>Registro</TableHead>
                   <TableHead className="text-right">Acción</TableHead>
                 </TableRow>
@@ -430,6 +446,22 @@ export default function AdminSection() {
                           </div>
                         ) : (
                           <Badge variant="outline">Usuario normal</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {isUserAdmin ? (
+                          <Badge className="bg-primary/10 text-primary border-primary/20">Administrador</Badge>
+                        ) : userAccess[u.user_id] ? (
+                          <div className="leading-tight">
+                            <Badge className="bg-success/10 text-success border-success/20">
+                              {userAccess[u.user_id].daysLeft} días restantes
+                            </Badge>
+                            <div className="mt-1 text-[11px] text-muted-foreground">
+                              Expira {new Date(userAccess[u.user_id].expiresAt).toLocaleDateString("es-CO")}
+                            </div>
+                          </div>
+                        ) : (
+                          <Badge variant="outline" className="text-muted-foreground">Sin acceso</Badge>
                         )}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">

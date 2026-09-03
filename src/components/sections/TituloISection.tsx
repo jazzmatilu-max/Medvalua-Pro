@@ -78,19 +78,19 @@ export default function TituloISection() {
               value={`ch-${ch.id}`}
               className="rounded-xl border bg-card shadow-sm overflow-hidden data-[state=open]:shadow-card transition-base"
             >
-              <AccordionTrigger className="px-5 py-4 hover:no-underline group">
+              <AccordionTrigger className="px-3 sm:px-5 py-4 hover:no-underline group">
                 <div className="flex items-center gap-4 flex-1 min-w-0">
                   <div className="h-10 w-10 rounded-lg bg-primary-soft text-primary flex items-center justify-center shrink-0 group-data-[state=open]:gradient-primary group-data-[state=open]:text-primary-foreground transition-base">
                     <Icon className="h-5 w-5" />
                   </div>
-                  <div className="min-w-0 text-left">
+                  <div className="min-w-0 flex-1 text-left">
                     <p className="text-xs font-mono text-muted-foreground">
                       {ch.code}
                     </p>
-                    <p className="font-semibold truncate">{ch.name}</p>
+                    <p className="font-semibold leading-snug break-words">{ch.name}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 mr-3">
+                <div className="flex shrink-0 items-center gap-2 mr-1 sm:mr-3">
                   {def ? (
                     <Badge className="bg-success/10 text-success border-success/20 font-mono">
                       <CheckCircle2 className="h-3 w-3 mr-1" />
@@ -103,7 +103,7 @@ export default function TituloISection() {
                   )}
                 </div>
               </AccordionTrigger>
-              <AccordionContent className="px-5 pb-5 pt-1 border-t bg-muted/20">
+              <AccordionContent className="px-3 sm:px-5 pb-5 pt-1 border-t bg-muted/20">
                 {ch.id === 15 ? <OsteomuscularForm /> : <ChapterClassForm chapter={ch} />}
               </AccordionContent>
             </AccordionItem>
