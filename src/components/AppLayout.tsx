@@ -137,9 +137,14 @@ export default function AppLayout() {
                       return <Ticket className={`h-5 w-5 shrink-0 ${cls}`} />;
                     })()}
                   </div>
-                  <span className="text-xs font-medium leading-snug text-sidebar-foreground break-words">
-                    {daysLeft === 0 ? 'Expira hoy' : `Te quedan ${daysLeft} día(s)`}
-                  </span>
+                  <div className="min-w-0 leading-snug">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-sidebar-foreground/70">
+                      Días de uso del cupón: {couponDuration !== null ? `${couponDuration} días` : "cargando..."}
+                    </p>
+                    <p className="text-xs font-medium text-sidebar-foreground break-words">
+                      {daysLeft === 0 ? 'Expira hoy' : `Te quedan ${daysLeft} día(s)`}
+                    </p>
+                  </div>
                 </div>
               )}
             </>
