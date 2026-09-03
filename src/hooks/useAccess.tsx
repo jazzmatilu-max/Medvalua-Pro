@@ -44,14 +44,27 @@ export function AccessProvider({ children }: { children: ReactNode }) {
     console.info('get_my_access result:', { data, error });
     if (error) {
       console.error("No se pudo verificar el acceso", error);
+      const { data: coupons, error: couponError } = await supabase
+        .from("coupons")
+        .select("code, expires_at")
+        .eq("redeemed_by", user.id)
+        .eq("used", true)
+        .gt("expires_at", new Date().toISOString())
+        .order("expires_at", { ascending: false })
+        .limit(1);
+      const coupon = coupons?.[0];
+      const daysLeft = coupon?.expires_at
+        ? Math.max(0, Math.ceil((new Date(coupon.expires_at).getTime() - Date.now()) / 86400000))
+        : null;
       setState({
-        hasAccess: authIsAdmin,
+        hasAccess: authIsAdmin || !!coupon,
         isAdmin: authIsAdmin,
-        expiresAt: null,
-        daysLeft: null,
-        code: null,
+        expiresAt: coupon?.expires_at ?? null,
+        daysLeft,
+        code: coupon?.code ?? null,
         loading: false,
       });
+      if (couponError) console.error("No se pudo recuperar el cupón activo", couponError);
       return;
     }
     const row = data?.[0];
