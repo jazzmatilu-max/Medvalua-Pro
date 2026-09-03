@@ -26,9 +26,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false);
 
   const ensureProfileAndRole = async (u: User) => {
+    const nombre = String(
+      u.user_metadata?.nombre
+      ?? u.user_metadata?.full_name
+      ?? u.user_metadata?.name
+      ?? "",
+    ).trim();
     await (supabase as any).rpc("ensure_current_user_profile", {
-      _nombre: u.user_metadata?.nombre ?? "",
+      _nombre: nombre,
     });
+    if (nombre) {
+      await (supabase.from("profiles" as any) as any)
+        .update({ nombre, full_name: nombre })
+        .eq("user_id", u.id);
+    }
     await checkAdmin(u.id);
   };
 

@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/table";
 import {
   Shield, Ticket, Plus, Copy, Trash2, Loader2, AlertCircle,
-  CheckCircle2, Clock, Search, Users, UserPlus,
+  CheckCircle2, Clock, Search, Users, UserPlus, UserX, UserMinus,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -34,8 +34,13 @@ interface Coupon {
 interface UserProfile {
   user_id: string;
   nombre: string | null;
+  full_name?: string | null;
   email: string | null;
   created_at: string;
+}
+
+function userDisplayName(user: Pick<UserProfile, "nombre" | "full_name" | "email">) {
+  return user.nombre?.trim() || user.full_name?.trim() || user.email?.split("@")[0] || "Usuario";
 }
 
 const DURATION_PRESETS = [
@@ -63,7 +68,7 @@ function statusOf(c: Coupon): Status {
 }
 
 export default function AdminSection() {
-  const { user } = useAuth();
+  const { user, refreshRole } = useAuth();
   const [rows, setRows] = useState<Coupon[]>([]);
   const [profiles, setProfiles] = useState<Record<string, { nombre: string | null; email: string | null }>>({});
   const [loading, setLoading] = useState(true);
@@ -78,6 +83,8 @@ export default function AdminSection() {
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [userSearch, setUserSearch] = useState("");
   const [promotingId, setPromotingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [demotingId, setDemotingId] = useState<string | null>(null);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -93,12 +100,12 @@ export default function AdminSection() {
     const ids = Array.from(new Set(list.map((c) => c.redeemed_by).filter(Boolean) as string[]));
     if (ids.length > 0) {
       const { data: profs } = await supabase
-        .from("profiles")
-        .select("user_id, nombre, email")
+        .from("profiles" as any)
+        .select("user_id, nombre, full_name, email")
         .in("user_id", ids);
       const map: Record<string, { nombre: string | null; email: string | null }> = {};
       (profs ?? []).forEach((p: any) => {
-        map[p.user_id] = { nombre: p.nombre, email: p.email };
+        map[p.user_id] = { nombre: p.nombre || p.full_name || p.email?.split("@")[0] || "Usuario", email: p.email };
       });
       setProfiles(map);
     } else {
@@ -110,7 +117,7 @@ export default function AdminSection() {
   const fetchUsers = async () => {
     setLoadingUsers(true);
     const [{ data: profs, error: profError }, { data: roles, error: roleError }] = await Promise.all([
-      supabase.from("profiles").select("user_id, nombre, email, created_at").order("created_at", { ascending: false }),
+      supabase.from("profiles" as any).select("user_id, nombre, full_name, email, created_at").order("created_at", { ascending: false }),
       supabase.from("user_roles").select("user_id, role"),
     ]);
     if (profError || roleError) {
@@ -225,6 +232,41 @@ export default function AdminSection() {
     const result = data?.[0];
     if (!result?.success) { toast.error(result?.message || "No se pudo habilitar como admin"); return; }
     toast.success("Usuario habilitado como administrador");
+    fetchUsers();
+  };
+
+  const removeUser = async (profile: UserProfile) => {
+    if (profile.user_id === user?.id) return;
+    const label = profile.email || profile.nombre || "este usuario";
+    if (!window.confirm(`¿Eliminar definitivamente a ${label}? También se eliminarán sus valoraciones y acceso.`)) return;
+    setDeletingId(profile.user_id);
+    const { data, error } = await (supabase as any).rpc("delete_user_account", {
+      _user_id: profile.user_id,
+    });
+    setDeletingId(null);
+    if (error) { toast.error(error.message); return; }
+    const result = data?.[0];
+    if (!result?.success) { toast.error(result?.message || "No se pudo eliminar el usuario"); return; }
+    toast.success("Usuario eliminado");
+    fetchUsers();
+    fetchAll();
+  };
+
+  const demote = async (uid: string) => {
+    const isSelf = uid === user?.id;
+    if (!window.confirm(isSelf
+      ? "¿Quieres dejar de ser administrador? Perderás el acceso al panel administrativo."
+      : "¿Quieres quitarle el rol de administrador a este usuario?")) return;
+    setDemotingId(uid);
+    const { data, error } = await (supabase as any).rpc("demote_user_from_admin", {
+      _user_id: uid,
+    });
+    setDemotingId(null);
+    if (error) { toast.error(error.message); return; }
+    const result = data?.[0];
+    if (!result?.success) { toast.error(result?.message || "No se pudo quitar el rol de administrador"); return; }
+    toast.success(isSelf ? "Has dejado de ser administrador" : "Rol de administrador retirado");
+    await refreshRole();
     fetchUsers();
   };
 
@@ -344,13 +386,29 @@ export default function AdminSection() {
                     <TableRow key={u.user_id}>
                       <TableCell>
                         <div className="leading-tight">
-                          <div className="font-medium text-foreground">{u.nombre || "Sin nombre"}</div>
+                          <div className="font-medium text-foreground">{userDisplayName(u)}</div>
                           <div className="text-xs text-muted-foreground">{u.email || "Sin email"}</div>
                         </div>
                       </TableCell>
                       <TableCell>
                         {isUserAdmin ? (
-                          <Badge className="bg-primary/10 text-primary border-primary/20">Admin</Badge>
+                          <div className="flex items-center gap-2">
+                            <Badge className="bg-primary/10 text-primary border-primary/20">Admin</Badge>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => demote(u.user_id)}
+                              disabled={demotingId === u.user_id}
+                              className="text-destructive hover:text-destructive"
+                              title={u.user_id === user?.id ? "Dejar de ser admin" : "Quitar rol de admin"}
+                            >
+                              {demotingId === u.user_id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <UserMinus className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </div>
                         ) : (
                           <Badge variant="outline">Usuario normal</Badge>
                         )}
@@ -371,6 +429,20 @@ export default function AdminSection() {
                             <UserPlus className="h-4 w-4 mr-1" />
                           )}
                           Hacer admin
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => removeUser(u)}
+                          disabled={deletingId === u.user_id || promotingId === u.user_id || u.user_id === user?.id}
+                          className="text-destructive hover:text-destructive"
+                          title="Eliminar usuario"
+                        >
+                          {deletingId === u.user_id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <UserX className="h-4 w-4" />
+                          )}
                         </Button>
                       </TableCell>
                     </TableRow>

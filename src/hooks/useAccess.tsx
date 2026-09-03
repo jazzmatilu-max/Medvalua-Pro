@@ -16,7 +16,7 @@ import {
 export { useAccess } from "@/hooks/accessContext";
 
 export function AccessProvider({ children }: { children: ReactNode }) {
-  const { user, session, loading: authLoading, refreshRole } = useAuth();
+  const { user, session, loading: authLoading, isAdmin: authIsAdmin, refreshRole } = useAuth();
   const [state, setState] = useState<AccessState>({
     hasAccess: false,
     isAdmin: false,
@@ -45,8 +45,8 @@ export function AccessProvider({ children }: { children: ReactNode }) {
     if (error) {
       console.error("No se pudo verificar el acceso", error);
       setState({
-        hasAccess: false,
-        isAdmin: false,
+        hasAccess: authIsAdmin,
+        isAdmin: authIsAdmin,
         expiresAt: null,
         daysLeft: null,
         code: null,
@@ -56,9 +56,10 @@ export function AccessProvider({ children }: { children: ReactNode }) {
     }
     const row = data?.[0];
     console.info('get_my_access row:', row);
+    const admin = authIsAdmin || !!row?.is_admin;
     setState({
-      hasAccess: !!row?.has_access,
-      isAdmin: !!row?.is_admin,
+      hasAccess: admin || !!row?.has_access,
+      isAdmin: admin,
       expiresAt: row?.expires_at ?? null,
       daysLeft: row?.days_left ?? null,
       code: row?.code ?? null,
@@ -102,7 +103,7 @@ export function AccessProvider({ children }: { children: ReactNode }) {
         }
       }
     }
-  }, [user]);
+  }, [user, authIsAdmin]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -113,8 +114,20 @@ export function AccessProvider({ children }: { children: ReactNode }) {
     async (code: string) => {
       const cleanCode = code.trim().toUpperCase().replace(/\s+/g, "");
       let row: any = null;
-      // Intentar proxy server-side (Vercel). En desarrollo local puede faltar, así hacemos fallback.
+
+      // La RPC bloquea y actualiza el cupón en una sola transacción.
       try {
+        const { data, error } = await supabase.rpc("redeem_access_coupon", {
+          _code: cleanCode,
+        });
+        console.info('redeem_access_coupon rpc result:', { data, error });
+        if (!error) row = data?.[0];
+      } catch (err) {
+        console.warn('Direct redeem RPC failed, trying proxy', err);
+      }
+
+      // Respaldo para despliegues donde la RPC aún no esté publicada.
+      if (!row) {
         const token = session?.access_token;
         const res = await fetch('/api/redeem-access', {
           method: 'POST',
@@ -126,26 +139,8 @@ export function AccessProvider({ children }: { children: ReactNode }) {
         });
         const payload = await res.json().catch(() => null);
         console.info('redeem_access_coupon proxy result:', res.status, payload);
-        if (res.ok) {
-          row = Array.isArray(payload) ? payload[0] : payload;
-        } else {
-          console.warn('Proxy returned error, will fallback to direct RPC', payload);
-        }
-      } catch (err) {
-        console.warn('Proxy failed, falling back to supabase.rpc', err);
-      }
-
-      // Fallback: llamar directamente a supabase.rpc si proxy no devolvió fila válida
-      if (!row) {
-        const { data, error } = await supabase.rpc("redeem_access_coupon", {
-          _code: cleanCode,
-        });
-        console.info('redeem_access_coupon rpc result:', { data, error });
-        if (error) {
-          console.error('redeem rpc error', error);
-          return { ok: false, message: error.message };
-        }
-        row = data?.[0];
+        row = res.ok ? (Array.isArray(payload) ? payload[0] : payload) : null;
+        if (!row && payload?.message) return { ok: false, message: payload.message };
       }
 
       if (!row?.success) {
@@ -170,8 +165,6 @@ export function AccessProvider({ children }: { children: ReactNode }) {
       } catch (err) {
         console.error('refreshRole failed after redeem', err);
       }
-      // Pequeña espera para asegurar que la transacción se haya aplicado en el servidor
-      await new Promise((res) => setTimeout(res, 400));
       await refresh();
       return { ok: true, message: row?.message || "Acceso activado" };
     },
