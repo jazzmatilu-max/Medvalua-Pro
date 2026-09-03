@@ -92,17 +92,17 @@ export default function ChapterClassForm({ chapter }: Props) {
           <SelectTrigger>
             <SelectValue placeholder="Elegir clase y grado del Manual 1507…" />
           </SelectTrigger>
-          <SelectContent className="max-w-[600px]">
+          <SelectContent className="w-[calc(100vw-2rem)] max-w-[600px] sm:w-[600px]">
             {options.map((o) => (
               <SelectItem key={o.key} value={o.key}>
-                <div className="flex items-center gap-2 max-w-[560px]">
+                <div className="flex min-w-0 flex-wrap items-center gap-2 max-w-[560px]">
                   <Badge variant="outline" className="font-mono shrink-0">
                     Clase {o.clase}
                   </Badge>
                   <span className="font-mono font-semibold text-primary shrink-0 w-12 text-right">
                     {o.value}%
                   </span>
-                  <span className="text-xs text-muted-foreground truncate">
+                  <span className="min-w-0 flex-1 text-xs text-muted-foreground whitespace-normal break-words">
                     {o.descripcion}
                   </span>
                 </div>
