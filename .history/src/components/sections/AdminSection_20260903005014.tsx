@@ -227,16 +227,11 @@ export default function AdminSection() {
     setPromotingId(uid);
     const { data, error } = await (supabase as any).rpc("promote_user_to_admin", { _user_id: uid });
     setPromotingId(null);
-    if (error || !data?.[0]?.success) {
-      const { error: directError } = await supabase.from("user_roles").insert({
-        user_id: uid,
-        role: "admin",
-      });
-      if (directError) { toast.error(directError.message || error?.message || "No se pudo habilitar como admin"); return; }
-    }
+    if (error) { toast.error(error.message); return; }
+    const result = data?.[0];
+    if (!result?.success) { toast.error(result?.message || "No se pudo habilitar como admin"); return; }
     toast.success("Usuario habilitado como administrador");
-    setAdminMap((current) => ({ ...current, [uid]: true }));
-    await fetchUsers();
+    fetchUsers();
   };
 
   const removeUser = async (profile: UserProfile) => {
@@ -266,27 +261,12 @@ export default function AdminSection() {
       _user_id: uid,
     });
     setDemotingId(null);
-    if (error || !data?.[0]?.success) {
-      const { count } = await supabase
-        .from("user_roles")
-        .select("user_id", { count: "exact", head: true })
-        .eq("role", "admin");
-      if ((count ?? 0) <= 1) { toast.error("Debe existir al menos un administrador"); return; }
-      const { error: directError } = await supabase
-        .from("user_roles")
-        .delete()
-        .eq("user_id", uid)
-        .eq("role", "admin");
-      if (directError) { toast.error(directError.message || error?.message || "No se pudo quitar el rol de administrador"); return; }
-    }
+    if (error) { toast.error(error.message); return; }
+    const result = data?.[0];
+    if (!result?.success) { toast.error(result?.message || "No se pudo quitar el rol de administrador"); return; }
     toast.success(isSelf ? "Has dejado de ser administrador" : "Rol de administrador retirado");
-    setAdminMap((current) => {
-      const next = { ...current };
-      delete next[uid];
-      return next;
-    });
     await refreshRole();
-    await fetchUsers();
+    fetchUsers();
   };
 
   const daysLeft = (c: Coupon) => {
