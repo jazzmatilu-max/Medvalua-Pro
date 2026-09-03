@@ -15,6 +15,38 @@ import {
 
 export { useAccess } from "@/hooks/accessContext";
 
+type PersistedAccess = {
+  code: string;
+  expiresAt: string;
+};
+
+function accessStorageKey(userId: string) {
+  return `medvalua-access-${userId}`;
+}
+
+function readPersistedAccess(userId: string): PersistedAccess | null {
+  try {
+    const stored = localStorage.getItem(accessStorageKey(userId));
+    if (!stored) return null;
+    const access = JSON.parse(stored) as PersistedAccess;
+    if (!access.code || !access.expiresAt || new Date(access.expiresAt).getTime() <= Date.now()) {
+      localStorage.removeItem(accessStorageKey(userId));
+      return null;
+    }
+    return access;
+  } catch {
+    return null;
+  }
+}
+
+function persistAccess(userId: string, access: PersistedAccess) {
+  try {
+    localStorage.setItem(accessStorageKey(userId), JSON.stringify(access));
+  } catch {
+    // La base de datos sigue siendo la fuente principal si el almacenamiento local no está disponible.
+  }
+}
+
 export function AccessProvider({ children }: { children: ReactNode }) {
   const { user, session, loading: authLoading, isAdmin: authIsAdmin } = useAuth();
   const [state, setState] = useState<AccessState>({
@@ -53,15 +85,17 @@ export function AccessProvider({ children }: { children: ReactNode }) {
         .order("expires_at", { ascending: false })
         .limit(1);
       const coupon = coupons?.[0];
-      const daysLeft = coupon?.expires_at
-        ? Math.max(0, Math.ceil((new Date(coupon.expires_at).getTime() - Date.now()) / 86400000))
+      const persistedAccess = !couponError ? null : readPersistedAccess(user.id);
+      const expiresAt = coupon?.expires_at ?? persistedAccess?.expiresAt ?? null;
+      const daysLeft = expiresAt
+        ? Math.max(0, Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 86400000))
         : null;
       setState({
-        hasAccess: authIsAdmin || !!coupon,
+        hasAccess: authIsAdmin || !!coupon || !!persistedAccess,
         isAdmin: authIsAdmin,
-        expiresAt: coupon?.expires_at ?? null,
+        expiresAt,
         daysLeft,
-        code: coupon?.code ?? null,
+        code: coupon?.code ?? persistedAccess?.code ?? null,
         loading: false,
       });
       if (couponError) console.error("No se pudo recuperar el cupón activo", couponError);
@@ -78,6 +112,9 @@ export function AccessProvider({ children }: { children: ReactNode }) {
       code: row?.code ?? null,
       loading: false,
     });
+    if (row?.has_access && row.expires_at && row.code) {
+      persistAccess(user.id, { code: row.code, expiresAt: row.expires_at });
+    }
 
     if (row?.has_access && !row?.is_admin && row?.days_left !== null) {
       const key = `${row.code}-${row.days_left}`;
@@ -170,6 +207,12 @@ export function AccessProvider({ children }: { children: ReactNode }) {
         code: row?.code ?? cleanCode,
         loading: false,
       }));
+      if (row?.expires_at) {
+        persistAccess(user!.id, {
+          code: row?.code ?? cleanCode,
+          expiresAt: row.expires_at,
+        });
+      }
       // show toast with expiry info
       const expiresMsg = row?.expires_at ? ` (expira: ${new Date(row.expires_at).toLocaleString()})` : '';
       toast.success(`Cupón aceptado${expiresMsg}`);
