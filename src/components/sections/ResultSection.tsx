@@ -114,16 +114,16 @@ export default function ResultSection() {
           </div>
         </div>
 
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={onSave} disabled={saving}>
+        <div className="grid w-full gap-2 sm:flex sm:w-auto">
+          <Button className="h-11 w-full sm:h-9 sm:w-auto" variant="outline" size="sm" onClick={onSave} disabled={saving}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             Guardar valoración
           </Button>
-          <Button size="sm" onClick={onPDF}>
+          <Button className="h-11 w-full sm:h-9 sm:w-auto" size="sm" onClick={onPDF}>
             <FileDown className="h-4 w-4" />
             Exportar Reporte PDF
           </Button>
-          <Button size="sm" variant="outline" onClick={onWord}>
+          <Button className="h-11 w-full sm:h-9 sm:w-auto" size="sm" variant="outline" onClick={onWord}>
             <FileText className="h-4 w-4" />
             Exportar Reporte Word
           </Button>
