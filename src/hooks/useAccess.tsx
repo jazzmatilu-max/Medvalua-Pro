@@ -16,7 +16,7 @@ import {
 export { useAccess } from "@/hooks/accessContext";
 
 export function AccessProvider({ children }: { children: ReactNode }) {
-  const { user, session, loading: authLoading, isAdmin: authIsAdmin, refreshRole } = useAuth();
+  const { user, session, loading: authLoading, isAdmin: authIsAdmin } = useAuth();
   const [state, setState] = useState<AccessState>({
     hasAccess: false,
     isAdmin: false,
@@ -154,21 +154,15 @@ export function AccessProvider({ children }: { children: ReactNode }) {
         isAdmin: !!row?.is_admin,
         expiresAt: row?.expires_at ?? s.expiresAt,
         daysLeft: row?.days_left ?? s.daysLeft,
-        code: row?.code ?? s.code,
+        code: row?.code ?? cleanCode,
         loading: false,
       }));
       // show toast with expiry info
       const expiresMsg = row?.expires_at ? ` (expira: ${new Date(row.expires_at).toLocaleString()})` : '';
       toast.success(`Cupón aceptado${expiresMsg}`);
-      try {
-        await refreshRole();
-      } catch (err) {
-        console.error('refreshRole failed after redeem', err);
-      }
-      await refresh();
       return { ok: true, message: row?.message || "Acceso activado" };
     },
-    [refreshRole],
+    [session],
   );
 
   return (
