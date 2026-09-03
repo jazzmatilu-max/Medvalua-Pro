@@ -16,7 +16,7 @@ import {
 export { useAccess } from "@/hooks/accessContext";
 
 export function AccessProvider({ children }: { children: ReactNode }) {
-  const { user, loading: authLoading, refreshRole } = useAuth();
+  const { user, session, loading: authLoading, isAdmin: authIsAdmin, refreshRole } = useAuth();
   const [state, setState] = useState<AccessState>({
     hasAccess: false,
     isAdmin: false,
@@ -41,11 +41,12 @@ export function AccessProvider({ children }: { children: ReactNode }) {
       return;
     }
     const { data, error } = await supabase.rpc("get_my_access");
+    console.info('get_my_access result:', { data, error });
     if (error) {
       console.error("No se pudo verificar el acceso", error);
       setState({
-        hasAccess: false,
-        isAdmin: false,
+        hasAccess: authIsAdmin,
+        isAdmin: authIsAdmin,
         expiresAt: null,
         daysLeft: null,
         code: null,
@@ -54,9 +55,11 @@ export function AccessProvider({ children }: { children: ReactNode }) {
       return;
     }
     const row = data?.[0];
+    console.info('get_my_access row:', row);
+    const admin = authIsAdmin || !!row?.is_admin;
     setState({
-      hasAccess: !!row?.has_access,
-      isAdmin: !!row?.is_admin,
+      hasAccess: admin || !!row?.has_access,
+      isAdmin: admin,
       expiresAt: row?.expires_at ?? null,
       daysLeft: row?.days_left ?? null,
       code: row?.code ?? null,
@@ -100,7 +103,7 @@ export function AccessProvider({ children }: { children: ReactNode }) {
         }
       }
     }
-  }, [user]);
+  }, [user, authIsAdmin]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -110,15 +113,58 @@ export function AccessProvider({ children }: { children: ReactNode }) {
   const redeem = useCallback(
     async (code: string) => {
       const cleanCode = code.trim().toUpperCase().replace(/\s+/g, "");
-      const { data, error } = await supabase.rpc("redeem_access_coupon", {
-        _code: cleanCode,
-      });
-      if (error) return { ok: false, message: error.message };
-      const row = data?.[0];
-      if (!row?.success) return { ok: false, message: row?.message || "Cupón inválido" };
-      await refreshRole();
-      // Actualiza el estado de acceso inmediatamente para reflejar el cupón redimido
-      // sin requerir que el usuario cierre sesión.
+      let row: any = null;
+
+      // La RPC bloquea y actualiza el cupón en una sola transacción.
+      try {
+        const { data, error } = await supabase.rpc("redeem_access_coupon", {
+          _code: cleanCode,
+        });
+        console.info('redeem_access_coupon rpc result:', { data, error });
+        if (!error) row = data?.[0];
+      } catch (err) {
+        console.warn('Direct redeem RPC failed, trying proxy', err);
+      }
+
+      // Respaldo para despliegues donde la RPC aún no esté publicada.
+      if (!row) {
+        const token = session?.access_token;
+        const res = await fetch('/api/redeem-access', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ code: cleanCode }),
+        });
+        const payload = await res.json().catch(() => null);
+        console.info('redeem_access_coupon proxy result:', res.status, payload);
+        row = res.ok ? (Array.isArray(payload) ? payload[0] : payload) : null;
+        if (!row && payload?.message) return { ok: false, message: payload.message };
+      }
+
+      if (!row?.success) {
+        console.warn('redeem returned not success', row);
+        return { ok: false, message: row?.message || "Cupón inválido" };
+      }
+      // Optimistic update: aplicar inmediatamente el nuevo estado de acceso
+      setState((s) => ({
+        ...s,
+        hasAccess: true,
+        isAdmin: !!row?.is_admin,
+        expiresAt: row?.expires_at ?? s.expiresAt,
+        daysLeft: row?.days_left ?? s.daysLeft,
+        code: row?.code ?? s.code,
+        loading: false,
+      }));
+      // show toast with expiry info
+      const expiresMsg = row?.expires_at ? ` (expira: ${new Date(row.expires_at).toLocaleString()})` : '';
+      toast.success(`Cupón aceptado${expiresMsg}`);
+      try {
+        await refreshRole();
+      } catch (err) {
+        console.error('refreshRole failed after redeem', err);
+      }
       await refresh();
       return { ok: true, message: row?.message || "Acceso activado" };
     },

@@ -1,11 +1,13 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useAccess } from "@/hooks/useAccess";
+import { supabase } from "@/integrations/supabase/client";
 import {
   Stethoscope, User, ClipboardList, Briefcase, Award, RotateCcw,
   BookOpen, History, Shield, LogOut, Menu, X, Lock, Ticket,
+  ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import PatientSection from "@/components/sections/PatientSection";
@@ -23,15 +25,46 @@ type SectionKey =
   | "paciente" | "titulo1" | "titulo2" | "resultado"
   | "valoraciones" | "biblioteca" | "admin";
 
+const WORKFLOW_SECTIONS: SectionKey[] = [
+  "paciente", "titulo1", "titulo2", "resultado", "valoraciones",
+];
+
 export default function AppLayout() {
   const [active, setActive] = useState<SectionKey>("paciente");
   const [mobileOpen, setMobileOpen] = useState(false);
   const { pcl, deficiencias, reset } = useApp();
   const { user, isAdmin, signOut } = useAuth();
-  const { hasAccess, isAdmin: accessAdmin, loading: accessLoading, daysLeft } = useAccess();
+  const { hasAccess, isAdmin: accessAdmin, loading: accessLoading, daysLeft, code } = useAccess();
+  const [couponDuration, setCouponDuration] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!hasAccess || !code) { setCouponDuration(null); return; }
+    let mounted = true;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('coupons')
+          .select('duration_days')
+          .eq('code', code)
+          .limit(1);
+        if (!mounted) return;
+        if (error || !data || data.length === 0) return;
+        setCouponDuration(data[0].duration_days ?? null);
+      } catch (err) {
+        console.warn('Could not fetch coupon duration', err);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [hasAccess, code]);
   const calificados = Object.keys(deficiencias).length;
   const restricted = new Set<SectionKey>(["paciente", "titulo1", "titulo2", "resultado", "valoraciones"]);
   const showLock = (key: SectionKey) => restricted.has(key) && !hasAccess && !accessAdmin && !accessLoading;
+  const workflowIndex = WORKFLOW_SECTIONS.indexOf(active);
+  const goToWorkflowSection = (offset: -1 | 1) => {
+    const nextIndex = workflowIndex + offset;
+    const nextSection = WORKFLOW_SECTIONS[nextIndex];
+    if (nextSection) setActive(nextSection);
+  };
 
   const NAV: { key: SectionKey; label: string; icon: typeof User; index: string; admin?: boolean }[] = [
     { key: "paciente", label: "Datos Paciente", icon: User, index: "1" },
@@ -80,16 +113,28 @@ export default function AppLayout() {
               </p>
               {!isAdmin && hasAccess && daysLeft !== null && (
                 <div className="mt-2 flex items-center gap-2">
-                  <div className="relative">
-                    <Ticket className="h-5 w-5 text-sidebar-foreground/80" />
-                    <span
-                      title={daysLeft === 0 ? "Expira hoy" : `Expira en ${daysLeft} día(s)`}
-                      className="absolute -top-1 -right-1 inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-destructive text-white"
-                    >
-                      {daysLeft > 99 ? "99+" : daysLeft}
-                    </span>
+                  <div
+                    className="relative"
+                    title={
+                      couponDuration !== null
+                        ? `Válido por ${couponDuration} día(s) · ${daysLeft === 0 ? 'Expira hoy' : `expira en ${daysLeft ?? '-'} día(s)`}`
+                        : (daysLeft === 0 ? 'Expira hoy' : `Expira en ${daysLeft ?? '-'} día(s)`)
+                    }
+                  >
+                    {(() => {
+                      const cls = daysLeft === null
+                        ? 'text-sidebar-foreground/80'
+                        : daysLeft <= 1
+                          ? 'text-destructive'
+                          : daysLeft <= 3
+                            ? 'text-warning-foreground'
+                            : 'text-sidebar-foreground/80';
+                      return <Ticket className={`h-5 w-5 ${cls}`} />;
+                    })()}
                   </div>
-                  <span className="text-[11px] text-sidebar-foreground/60">días restantes</span>
+                  <span className="text-[11px] text-sidebar-foreground/60">
+                    {couponDuration !== null ? `Válido: ${couponDuration} día(s)` : 'días restantes'}
+                  </span>
                 </div>
               )}
             </>
@@ -182,6 +227,33 @@ export default function AppLayout() {
           )}
           {active === "biblioteca" && <BibliotecaSection />}
           {active === "admin" && isAdmin && <AdminSection />}
+
+          {workflowIndex !== -1 && (
+            <div className="mt-8 flex items-center justify-between gap-3 border-t border-border pt-5">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => goToWorkflowSection(-1)}
+                disabled={workflowIndex === 0}
+                aria-label="Ir al módulo anterior"
+              >
+                <ChevronLeft className="h-4 w-4 mr-1" />
+                Anterior
+              </Button>
+              <span className="text-xs text-muted-foreground">
+                Módulo {workflowIndex + 1} de {WORKFLOW_SECTIONS.length}
+              </span>
+              <Button
+                type="button"
+                onClick={() => goToWorkflowSection(1)}
+                disabled={workflowIndex === WORKFLOW_SECTIONS.length - 1}
+                aria-label="Ir al módulo siguiente"
+              >
+                Siguiente
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+            </div>
+          )}
         </div>
       </main>
     </div>

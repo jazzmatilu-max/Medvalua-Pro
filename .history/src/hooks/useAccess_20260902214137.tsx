@@ -16,7 +16,7 @@ import {
 export { useAccess } from "@/hooks/accessContext";
 
 export function AccessProvider({ children }: { children: ReactNode }) {
-  const { user, loading: authLoading, refreshRole } = useAuth();
+  const { user, session, loading: authLoading, isAdmin: authIsAdmin, refreshRole } = useAuth();
   const [state, setState] = useState<AccessState>({
     hasAccess: false,
     isAdmin: false,
@@ -45,8 +45,8 @@ export function AccessProvider({ children }: { children: ReactNode }) {
     if (error) {
       console.error("No se pudo verificar el acceso", error);
       setState({
-        hasAccess: false,
-        isAdmin: false,
+        hasAccess: authIsAdmin,
+        isAdmin: authIsAdmin,
         expiresAt: null,
         daysLeft: null,
         code: null,
@@ -55,9 +55,11 @@ export function AccessProvider({ children }: { children: ReactNode }) {
       return;
     }
     const row = data?.[0];
+    console.info('get_my_access row:', row);
+    const admin = authIsAdmin || !!row?.is_admin;
     setState({
-      hasAccess: !!row?.has_access,
-      isAdmin: !!row?.is_admin,
+      hasAccess: admin || !!row?.has_access,
+      isAdmin: admin,
       expiresAt: row?.expires_at ?? null,
       daysLeft: row?.days_left ?? null,
       code: row?.code ?? null,
@@ -101,7 +103,7 @@ export function AccessProvider({ children }: { children: ReactNode }) {
         }
       }
     }
-  }, [user]);
+  }, [user, authIsAdmin]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -111,19 +113,56 @@ export function AccessProvider({ children }: { children: ReactNode }) {
   const redeem = useCallback(
     async (code: string) => {
       const cleanCode = code.trim().toUpperCase().replace(/\s+/g, "");
-      const { data, error } = await supabase.rpc("redeem_access_coupon", {
-        _code: cleanCode,
-      });
-      console.info('redeem_access_coupon result:', { data, error });
-      if (error) {
-        console.error('redeem rpc error', error);
-        return { ok: false, message: error.message };
+      let row: any = null;
+      // Intentar proxy server-side (Vercel). En desarrollo local puede faltar, así hacemos fallback.
+      try {
+        const token = session?.access_token;
+        const res = await fetch('/api/redeem-access', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ code: cleanCode }),
+        });
+        const payload = await res.json().catch(() => null);
+        console.info('redeem_access_coupon proxy result:', res.status, payload);
+        if (res.ok) {
+          row = Array.isArray(payload) ? payload[0] : payload;
+        } else {
+          console.warn('Proxy returned error, will fallback to direct RPC', payload);
+        }
+      } catch (err) {
+        console.warn('Proxy failed, falling back to supabase.rpc', err);
       }
-      const row = data?.[0];
+
+      // Fallback: llamar directamente a supabase.rpc si proxy no devolvió fila válida
+      if (!row) {
+        const { data, error } = await supabase.rpc("redeem_access_coupon", {
+          _code: cleanCode,
+        });
+        console.info('redeem_access_coupon rpc result:', { data, error });
+        if (error) {
+          console.error('redeem rpc error', error);
+          return { ok: false, message: error.message };
+        }
+        row = data?.[0];
+      }
+
       if (!row?.success) {
         console.warn('redeem returned not success', row);
         return { ok: false, message: row?.message || "Cupón inválido" };
       }
+      // Optimistic update: aplicar inmediatamente el nuevo estado de acceso
+      setState((s) => ({
+        ...s,
+        hasAccess: true,
+        isAdmin: !!row?.is_admin,
+        expiresAt: row?.expires_at ?? s.expiresAt,
+        daysLeft: row?.days_left ?? s.daysLeft,
+        code: row?.code ?? s.code,
+        loading: false,
+      }));
       // show toast with expiry info
       const expiresMsg = row?.expires_at ? ` (expira: ${new Date(row.expires_at).toLocaleString()})` : '';
       toast.success(`Cupón aceptado${expiresMsg}`);
