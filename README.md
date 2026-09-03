@@ -12,4 +12,4 @@ VITE_SUPABASE_ANON_KEY=<clave anon del proyecto>
 VITE_SUPABASE_PUBLISHABLE_KEY=<clave publishable del proyecto>
 ```
 
-El proyecto usa `vercel.json` para que las rutas de la SPA, incluida `/auth`, funcionen al recargar.
+El proyecto usa `vercel.json` para que las rutas de la SPA, incluida `/auth`, funcionen al recargar. Después de cambiar variables en Vercel, ejecuta un nuevo redeploy.
