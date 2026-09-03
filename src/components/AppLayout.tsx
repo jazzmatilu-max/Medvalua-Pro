@@ -116,8 +116,8 @@ export default function AppLayout() {
               <p className="text-[11px] text-sidebar-foreground/50 mt-3 break-words">
                 Hola, {userName} {isAdmin && <span className="text-primary-glow font-semibold">· Admin</span>}
               </p>
-              {!isAdmin && hasAccess && daysLeft !== null && (
-                <div className="mt-2 flex items-center gap-2">
+              {!accessAdmin && hasAccess && daysLeft !== null && (
+                <div className="mt-3 flex items-center gap-2 rounded-md bg-sidebar-accent/70 px-2.5 py-2">
                   <div
                     className="relative"
                     title={
@@ -134,10 +134,10 @@ export default function AppLayout() {
                           : daysLeft <= 3
                             ? 'text-warning-foreground'
                             : 'text-sidebar-foreground/80';
-                      return <Ticket className={`h-5 w-5 ${cls}`} />;
+                      return <Ticket className={`h-5 w-5 shrink-0 ${cls}`} />;
                     })()}
                   </div>
-                  <span className="text-[11px] leading-snug text-sidebar-foreground/60 break-words">
+                  <span className="text-xs font-medium leading-snug text-sidebar-foreground break-words">
                     {daysLeft === 0 ? 'Expira hoy' : `Te quedan ${daysLeft} día(s)`}
                   </span>
                 </div>
