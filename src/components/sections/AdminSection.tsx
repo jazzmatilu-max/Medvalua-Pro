@@ -255,7 +255,10 @@ export default function AdminSection() {
   };
 
   const removeUser = async (profile: UserProfile) => {
-    if (profile.user_id === user?.id) return;
+    if (profile.user_id === user?.id) {
+      toast.error("No puedes eliminar tu propia cuenta");
+      return;
+    }
     const label = profile.email || profile.nombre || "este usuario";
     if (!window.confirm(`¿Eliminar definitivamente a ${label}? También se eliminarán sus valoraciones y acceso.`)) return;
     setDeletingId(profile.user_id);
@@ -487,7 +490,7 @@ export default function AdminSection() {
                           onClick={() => removeUser(u)}
                           disabled={deletingId === u.user_id || promotingId === u.user_id || u.user_id === user?.id}
                           className="text-destructive hover:text-destructive"
-                          title="Eliminar usuario"
+                          title={u.user_id === user?.id ? "No puedes eliminar tu propia cuenta" : "Eliminar usuario"}
                         >
                           {deletingId === u.user_id ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
